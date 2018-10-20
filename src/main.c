@@ -81,6 +81,7 @@ int run_ntttcp_sender(struct ntttcp_test_endpoint *tep)
 	/* prepare to create threads */
 	pthread_attr_init(&pth_attrs);
 	pthread_attr_setstacksize(&pth_attrs, THREAD_STACK_SIZE);
+    test->client_base_port = 5000;
 	/* create test threads */
 	for (t = 0; t < test->server_ports; t++) {
 		for (n = 0; n < test->threads_per_server_port; n++ ) {
@@ -221,11 +222,11 @@ int run_ntttcp_receiver(struct ntttcp_test_endpoint *tep)
 	PRINT_INFO_FREE(log);
 
 	while ( 1 ) {
-		/* for receiver, there are two ways to trigger test start:
+		/* for receiver, there are three ways to trigger test start:
 		 * a) if synch enabled, then sync thread will trigger turn_on_light() after sync completed;
 		 *	see create_receiver_sync_socket()
 		 * b) if no synch enabled, then any tcp server accept client connections, the turn_on_light() will be triggered;
-		 *	see ntttcp_server_epoll(), or ntttcp_server_select()
+		 *	see ntttcp_server_epoll(), ntttcp_server_kqueue(), or ntttcp_server_select()
 		 */
 		wait_light_on();
 
@@ -281,7 +282,10 @@ int run_ntttcp_receiver(struct ntttcp_test_endpoint *tep)
 int main(int argc, char **argv)
 {
 	int err_code = NO_ERROR;
+#if defined(__APPLE__)
+#else
 	cpu_set_t cpuset;
+#endif
 	struct ntttcp_test *test;
 	struct ntttcp_test_endpoint *tep;
 
@@ -331,17 +335,23 @@ int main(int argc, char **argv)
 	turn_off_light();
 
 	if (test->cpu_affinity != -1) {
+#if defined(__APPLE__)
+#else
 		CPU_ZERO(&cpuset);
 		CPU_SET(test->cpu_affinity, &cpuset);
 		PRINT_INFO("main: set cpu affinity");
 		if ( pthread_setaffinity_np( pthread_self(), sizeof(cpu_set_t ), &cpuset) != 0 )
 			PRINT_ERR("main: cannot set cpu affinity");
+#endif
 	}
 
 	if (test->daemon) {
+#if defined(__APPLE__)
+#else
 		PRINT_INFO("main: run this tool in the background");
 		if ( daemon(0, 0) != 0 )
 			PRINT_ERR("main: cannot run this tool in the background");
+#endif
 	}
 
 	if (test->client_role == true) {
